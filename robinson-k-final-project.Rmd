@@ -1,0 +1,414 @@
+---
+title: "robinson-k-final-project"
+author: "Kristin Robinson"
+date: "May 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, warnings = FALSE }
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+
+
+# load libraries
+library(rgdal)
+library(rgeos)
+library(raster)
+library(ggplot2)
+library(RColorBrewer)
+library(maps)
+library(ggmap)
+library(dplyr)
+library(devtools)
+library(leaflet)
+library(sp)
+library(lubridate)
+library(readr)
+library(grid)
+library(gridExtra)
+
+# library for calculating distance between two coords in degrees
+library(geosphere)
+
+
+options(stringsAsFactors = FALSE)
+```
+
+The moments after an earthquake are critical. Early detection and early warning of earthquakes can save property and lives. The United States Geological Survey (USGS) developed ShakeMap to assist public and private organizations and individuals with post-earthquake response and recovery. The USGS distributes ShakeMaps in the minutes after an earthquake. These maps and their associated datum show the shaking intensity across the affected area. These maps are updated over time as additional information flows in. 
+
+With the help of scientists, engineers and public officials and in large part due to improved early warning systems and recover tools like ShakeMap damages and losses associated with earthquakes have declined. ShakeMap distribution comes minutes after an earthquake but is there a system or platform that can detect and send out early warnings within seconds? This report looks at twitter data to see if it could be the answer.
+
+Twitter has over 330 million active visitors per month. This micro-blogging tool has become a communication platform for millions of people around the world. The data from twitter is publicly availble through the twitter API. In addition to the text of a tweet, if a user chooses to include their geolocation information, through the twitter API, another person can get not only their tweet but also the location they tweeted from and the time which they tweeted. By looking at the volume of tweets, the location of tweet and when the tweet was sent out, we will examine whether through tweets a person can become part of network of human sensors whose social media data can help predict earthquakes and guage their intensity on a micro-level. 
+
+This repor focuses on the South Napa, California earthquake on August 24, 2014. This 6M earthquake struck at 4:40 MT 30 miles north northeast of San Francisco and just outside of Napa. ShakeMap reported intensity as high as 8 close to the epicenter and in the Napa Valley. The heavy shaking caused 2 fatalities over 300 reported injuries and over $300 million in reported damage. We will look at the tweets sent immediately after the earthquake and within 70 miles of the epicenter for our study.  
+
+
+```{r introduction}
+#load shakemap
+shake_sh <- readOGR(dsn="data/shakemap/shapefile/mi.shp")
+shake_sh$GRID_CODE<-as.numeric(shake_sh$GRID_CODE)
+
+# get Google map of Napa California area
+napa_map <- get_map(location = "Napa, California",
+               source = "google",
+               maptype = "terrain",
+               crop = TRUE,
+               zoom = 8)
+
+
+# get extent
+aoi <- as(raster::extent(shake_sh), "SpatialPolygons")
+proj4string(aoi) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+  
+# create aoi map 
+aoi_map <-  ggmap(napa_map, extent = "device") +
+  geom_polygon(aes(
+    x = long,
+    y = lat, 
+    group=id),
+    data = aoi, 
+    color = "blue", 
+    fill = NA,
+    alpha = 1, 
+    size = 1)  + 
+  geom_point(
+    aes(x = -122.31, 
+        y = 38.22),
+    colour = "red",
+    size = 6,
+    shape = 19) +
+  geom_text(aes(x = -122.31, 
+        y = 38.22, label = "Epicenter"), colour = "red", size = 6, hjust = -.2, vjust =.2)
+  
+# plot aoi map with title
+aoi_map + ggtitle("2014 South Napa Earthquake\nEpicenter and ShakeMap boundary") +
+  theme(plot.title = element_text(family = "Times", color="#666666", face="bold", size=12, hjust=0)) +
+  theme(legend.position="none")
+
+cap <- 
+```
+Figure 1. Epicenter of the August 24, 2014 South Napa earthquake. The blue box shows the boundaries for the area of interest for this report.  
+
+
+
+#Literature Review  
+
+
+Over the past decade, several researchers have examined how twitter data can be used in earthquake analysis. Researchers cite the volume of accessible, real-time, geo-located data as the primary reasons for investigating twitter's potential. While researching the 2011 Mineral, Virginia earthquake, Crooks, Croitoru, Stefanidis and Raszikowski looked at over 20,000 geolocated tweets collected within 8 hours of the earthquake while Kropivinitskaya, Tiampo, Qin and Bauer worked with over 1.8 gigabytes data collected within 24 hours of the 2014, South Napa earthquake. Twitter's potential has been viewed in relation to intensity scales.  Kropivinitskaya et al. looked at the rate of tweets and distance from epicenter. These studies focus on the rate of tweets over an area and the relative volume of tweets to determine if they report intensity. One study looking strictly at detection used text and cluster analysis to conclude that. The conclusion is that the twitter is a good supplement. Some contradiction in the conclusions. Say to use in conjunction but say potential in standalone in areas without coverage. 
+ 
+ 
+ prime reason to look at it As early as 2012, Crooks, Croitory, Stefanidis and Razikowski looked at twitter's pote
+
+##Materials and Methods  
+
+###Study Area  
+The studay area lies within the northern portion of the San Francisco Bay Area. The earthquake took place in the West Napa Fault zone. The epicenter [Lat. 38.22N, Long.  -122.31W] was located 6 miles south-southwest of Napa near the north shore of San Pablo Bay. The bayshore areas in the San Francisco Bay region are underlain by landfill and bay mud. (PEER Report p3)  
+
+
+###ShakeMap data  
+ShakeMap is a product of the USGS Earthquake Hazards Program. Using ground-motion observations from seismic stations and observations from Did You Feel It? and field surveys, ShakeMap maps display the ground motion and shaking intensity on the Modified Mercalli Intensity scale (manual). Since the South Napa earthquake was one of the major earthquakes experienced in the US in the past decade year, it has been heavily studied. To support these studies, the USGS provides ShakeMap data in multiple formats. For our report we used raster files and shapefiles for MMI information and a cvs file for sensor locations. The raster and shapefiles required little manual manipulation. We updated the projection of the raster file to match the projection of our shapefile data. We also changed the data type of one of the raster file's to numeric so we could create a custom palette that matched the USGS' official pallete for the ShakeMap MMI scale. The rasters and shapefiles were opened and plotted using pre-built functions from R packages. The station location csv file required minimal manual manipulation. For consistency, the time field in the csv files was converted to Mountain Time using the POSIXct funtion.  
+
+###Twitter data  
+The twitter data comes from CU Boulder's Project EPIC. From EPIC we received a csv file containing tweets from August 2012 thru February 2017. These tweets were obtained in real-time using the twitter API and a query on all tweets containing the word "earthqauke" or similar. These tweets had been partially processed. We only received tweets that had geo-location data and no re-tweets.  
+
+Once we received the data we manipulated the time and location data for use in subsetting our data and in our plots. Subsetting on the TimeStammp field we were able to create smaller dataframes of differing time periods. We used the POSIXct function to change the datatype of the "TimeStamp" data. The polar coordinates were included in one field were of a character datatype. Using a combination of string and character manipulation functions from R packages along with subsetting of the data we added numeric latitude and longitude to the twitter data dataframe. Using the epicenter and longitude and latitude of each tweet were able to calculate the distance from the epicenter for each tweet. We also used the as.numeric function to calculate elapsed minutes, hours and days between the earthquake and each tweet.  
+
+
+We used tidytext for some text mining work (a histogram on word frequency and text based cluster analysis), but the results were not significant enough to include in the report.  
+
+Manipulation of twitter data:
+```{r echo = TRUE, hide = TRUE, include = FALSE, message = FALSE, warning = FALSE}
+###twitter data###
+
+twitter_data <- read.csv("data/twitter/twitter_data_31day.csv")
+
+## format time ##
+twitter_data$Timestamp<-as.POSIXct(twitter_data$Timestamp)
+
+
+# split long/lat coordinates into two columns and remove special characters
+twitter_data$lon <- sapply(strsplit(as.character(twitter_data$Coordinates),','), "[", 1) 
+twitter_data$lon <- (sub('^\\[', '', twitter_data$lon)) %>% as.numeric(twitter_data$lon)
+twitter_data$lat <- sapply(strsplit(as.character(twitter_data$Coordinates),','), "[", 2)
+twitter_data$lat <- (sub(']$', '', twitter_data$lat))
+
+# cast strings as num
+twitter_data$lon <-as.numeric(twitter_data$lon)
+twitter_data$lat <-as.numeric(twitter_data$lat)
+
+# set columns to epicenter lon andlat (-122.31, 38.22)
+twitter_data$epicenlon <- as.numeric(-122.31)
+twitter_data$epicenlat <- as.numeric(38.22)
+
+# set meters per mile
+m_per_mi <- 1609.34
+
+# distance from epicenter test
+# dist <- (distVincentySphere(c(-122.319200, 38.21420),c(-122.31, 38.22)))/m_per_mi
+
+# calculate and add column for distance from epicenter
+twitter_data <- twitter_data %>% mutate(dist = distHaversine(cbind(lon, lat), cbind(epicenlon, epicenlat)))
+twitter_data$dist <- twitter_data$dist/m_per_mi
+
+# set earthquake date and time
+day1 <- as.Date("2014-08-24")
+hour1 <- as.POSIXct("2014-08-24 04:20:44")
+
+# add columns for elapsed in days, mins, secs
+twitter_data$frac_day_from_erup <- as.numeric(difftime(twitter_data$Timestamp, hour1, units = "days"))
+twitter_data$whole_day_from_erup <- as.numeric(difftime (as.Date(twitter_data$Timestamp), day1, units = "days"))
+twitter_data$hour_from_erup <- as.numeric(difftime (as.Date(twitter_data$Timestamp), day1, units = "hours"))
+twitter_data$frac_min_from_erup <- as.numeric(difftime(twitter_data$Timestamp, hour1, units = "mins"))
+twitter_data$whole_min_from_erup <-trunc(twitter_data$frac_min_from_erup, "mins")
+twitter_data$sec_from_erup <- as.numeric(difftime(twitter_data$Timestamp, hour1, units = "secs"))
+
+# create 31 day df
+twitter_data_31day <- twitter_data
+
+# create 1 day df
+twitter_data_1day <- subset(twitter_data, 
+                            twitter_data$Timestamp >= ('2014-08-24 04:20:44') &
+                            twitter_data$Timestamp <= ('2014-08-25 04:20:43') )
+# create 1 min df
+twitter_data_10min <- subset(twitter_data, 
+                            twitter_data$Timestamp >= ('2014-08-24 04:20:44') &
+                            twitter_data$Timestamp <= ('2014-08-24 04:30:43') )
+
+
+###shakemap data###
+# shapefile loaded in earlier chunk
+# shake_sh <- readOGR(dsn="data/shakemap/shapefile/mi.shp")
+shake_sh$GRID_CODE<-as.numeric(shake_sh$GRID_CODE)
+
+# load raster
+shake_rs <- raster("data/shakemap/raster/mi.fit")
+
+
+```
+
+##Results
+
+Looking at the data in decreasing time intervals we found the first ten minutes after the earthquake had the highest rate of tweets within our area of interest. During this period there as an average of xxxx. The first tweet went out 21 seconds after the earthquake. 
+
+
+```{r tweets-over-time}
+
+# create histogram: 31 day (tweets per day)
+hist_31day <-ggplot(twitter_data_31day, aes(whole_day_from_erup)) +
+  #geom_histogram(binwidth = 1, boundary = 1, closed = "left") +
+  geom_histogram(breaks=seq(0, 31, by = 1),
+                 col = "black",
+                 fill = "blue",
+                 alpha = .2)+
+  labs(x = "Tweets per day", 
+       y = "Number of tweets", 
+       title = "31 days") +
+  xlim(c(0,31))
+
+# create histogram: 1 day  (tweets per hour)
+hist_1day <-ggplot(twitter_data_1day, aes(hour_from_erup)) +
+  geom_histogram(breaks=seq(0, 23, by = 1),
+                 col = "black",
+                 fill = "green",
+                 alpha = .2)+
+  labs(x = "Hours from eruption", 
+       y = "Number of tweets", 
+       title = "24 hours") +
+  xlim(c(0,23))
+
+# create histogram: 10 min (tweets per min)
+hist_1min <- ggplot(twitter_data_10min, aes(whole_min_from_erup)) +
+  #geom_histogram(binwidth = 1, boundary = 1, closed = "left") +
+  geom_histogram(breaks=seq(0, 9, by = 1),
+                 col = "black",
+                 fill = "darkred",
+                 alpha = .2)+
+  labs(x = "Minutes after earthquake", 
+       y = "Number of tweets", 
+       title = "10 minutes") +
+  xlim(c(0,9))
+
+# plot plots in grid with title
+grid.arrange(hist_31day, hist_1day, hist_1min, ncol = 3, top = "Tweets by time from eruption\nSouth Napa Earthquake")
+
+```
+Figure 2. The number of tweets over three time periods is shown. The highest rate of tweets comes in the first day within the first hour within the first 10 minutes after the earthquake.  
+
+
+The majority of tweets came from within a 50 mile radius. 30 miles from the epicenter there is a noticible cluster of tweets. Not coincidentally, the densely populated city of San Francisco is located 30 miles south southwest of the epicenter 
+
+```{r tweets-by-distance, fig.cap=""}
+
+# create plot: number of tweets by time by distance
+dist_all <- ggplot(twitter_data_10min, 
+       aes(x = frac_min_from_erup, 
+           y = dist)) +
+  geom_point(colour = "royalblue2", size = 1) + 
+  scale_x_continuous("minutes after quake", 
+                     breaks = c(0,1,2,3,4,5,6,7,8,9)) + 
+   scale_y_continuous("distance (mi)") + 
+  labs(subtitle = "distance: global")
+
+
+# create plot: number of tweets by time by distance (distance <= 500 miles)
+dist_500mi <- ggplot(twitter_data_10min, 
+                     aes(x = frac_min_from_erup, 
+                         y = dist)) + 
+  geom_point(colour = "royalblue2", size = 1) +
+  scale_x_continuous("minutes after quake", 
+                     breaks = c(0,1,2,3,4,5,6,7,8,9)) + 
+  scale_y_continuous("distance (mi)", limits = c(0,500)) +
+  labs(subtitle = "distance: 0 - 500 mi." )
+ 
+
+# create plot: number of tweets by time by distance (distance <= 100 miles)
+dist_100mi <- ggplot(twitter_data_10min, 
+                     aes(x = frac_min_from_erup,
+                         y = dist)) + 
+  geom_point(colour = "royalblue2", size = 1) +
+  scale_x_continuous("minutes after quake", 
+                     breaks = c(0,1,2,3,4,5,6,7,8,9)) + 
+  scale_y_continuous("distance (mi)", limits = c(0,100)) +
+  labs(subtitle = "distance: 0 - 100 mi." )
+
+# create plot: number of tweets by time by distance (distance <= 50 mi.)
+dist_50mi <- ggplot(twitter_data_10min, 
+                    aes(x = frac_min_from_erup, 
+                        y = dist)) + 
+  geom_point(colour = "royalblue2", size = 1) +
+  scale_x_continuous("minutes after quake", 
+                     breaks = c(0,1,2,3,4,5,6,7,8,9)) + 
+  scale_y_continuous("distance (mi)", limits = c(0,50)) +
+  labs(subtitle = "distance: 0 - 50 mi." )
+
+# plot plots in grid with title
+grid.arrange(dist_all, dist_500mi, dist_100mi, dist_50mi, ncol = 2, 
+             top = "Tweets by Distance\nSouth Napa Earthquake")
+```
+Figure 3. Tweet distance from the epicenter in the first 10 minutes after the earthquake. The majority of tweets came from withn 75 miles (bottom left.) There is a cluster of tweets 30 miles from epicenter. The cluster is apparent throughout the 10 minutes (bottom right.)  
+
+
+When looking at the mapped twitter data, there are four large clusters of data which indicates a high volume of tweets. The tweets are shown in relation to the shaking intensity reported by ShakeMap. Only one cluster of tweets (218 tweets) lies near the epicenter and in an area with a shaking intensity greater than 6. The largest cluster of tweets (1384 tweets) is located in San Franciscoe. The shaking intensity in San Francisco only got as high as 4. Similarly, a relatively high volume of tweets (405) came from San Jose. San Jose
+is just at the border of the shakemap. Parts of San Jose are not included in the ShakeMap due to the low to no level shaking experienced in San Jose. 
+```{r shakemap-twitter}
+# create marker for epicenter
+epi <- makeIcon(
+  iconUrl = "http://icons.iconarchive.com/icons/icons-land/vista-map-markers/256/Map-Marker-Ball-Pink-icon.png",
+  iconWidth = 60, iconHeight = 60,
+  iconAnchorX = 0, iconAnchorY = 0)
+
+# reproduce MMI scale
+cols <- c("#FFFFFF","#FFFFFF", "#BFCCFF", "#A0E6FF", "#80FFFF", "#7AFF93", "#FFFF00", "#FFC800","#FF9100","#C80000")
+
+# set colors for leaflet plot
+pal1 <- colorNumeric(palette = cols, domain = shake_sh$PARAMVALUE)
+pal2 <- colorNumeric(palette = cols, domain = shake_sh$GRID_CODE)
+
+# leaflet plot 
+leaflet(shake_sh) %>% addProviderTiles(providers$OpenMapSurfer.Roads, group = "Base map") %>% 
+  fitBounds(-123.56, 37.38, -121.05, 39.05) %>%
+  addPolygons(color = ~pal2(GRID_CODE), 
+              weight = 0, 
+              smoothFactor = 0.5,
+              opacity = 0, 
+              fillOpacity = 0.6, 
+              fillColor = ~pal1(PARAMVALUE),
+              group = "ShakeMap")%>%
+  addMarkers(lng = -122.31, lat = 38.22, group = "Epicenter") %>%
+  addAwesomeMarkers( clusterOptions = markerClusterOptions(),
+                     twitter_data_10min, 
+                     lat=twitter_data_10min$lat, 
+                     lng=twitter_data_10min$lon, 
+                     popup=~twitter_data_10min$Text,
+                     group = "Tweets") %>% 
+  addLegend(pal = pal2, values = ~GRID_CODE, position = "bottomright",
+    title = "MM Intensity") %>%
+  addLayersControl(
+    baseGroups = ("Base map"),
+    overlayGroups= c("ShakeMap", "Epicenter", "Tweets"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
+```
+Figure 4. Tweet volume in relation to ShakeMap shaking intensity. The heaviest shaking appears near the epicenter while the highest volume of tweets appears in San Francisco.
+
+```{r}
+# Color scheme for shakemap data
+pal2 <- colorNumeric(rev(brewer.pal(n = 9, name = "Spectral")), values(shake_rs))
+pal4 <- colorNumeric(palette = cols, 
+                     domain = twitter_data_10min$frac_min_from_erup)
+
+crs(shake_rs) <- sp::CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# Use leaflet() here, and only include aspects of the map that
+# won't need to change dynamically (at least, not unless the
+    # entire map is being torn down and recreated).
+    leaflet(twitter_data_10min) %>% 
+      addProviderTiles(providers$OpenMapSurfer.Roads) %>%
+      addRasterImage(group = "Shakemap", 
+                     shake_rs, 
+                     colors = pal2, 
+                     opacity = .5) %>%
+      fitBounds(-123.56, 37.38, -121.06, 39.04) %>%
+       addAwesomeMarkers( clusterOptions = markerClusterOptions,
+                     twitter_data_10min, 
+                     lat=twitter_data_10min$lat, 
+                     lng=twitter_data_10min$lon, 
+                     popup=~twitter_data_10min$Text,
+    
+                     group = "Tweets") %>% 
+    addLayersControl(
+        overlayGroups = c("Shakemap", "Tweets"),
+        options = layersControlOptions(collapsed = FALSE))
+
+
+      
+```
+
+#Summary  
+
+Our data did not show a 1:1 correspondance between the number of tweets in an area and the shaking intensity of that area. While this shown to be true in the Napa area, in more densely populated areas the number of tweets reflected the population size and not the shaking intensity. That does not mean there is no value in looking at twitter data during and immediately after an earthquake. The first tweet went out less than 40 seconds after the earthquake. This quickly available data could be used in conjunction with ShakeMap data for a more accurate portrayal of the shaking closer to the incident. In large scale hazards event, the early tweets could offer some warning to areas further from the epicenter. We were unable to perform any substantive rext analytics. However, had we done this, we may have found that the content of the tweets could help first responders locate the areas where the hazard is negatively impacting the largest number of people. Though twitter can not be used in isolation of other tools, the qualative and quantative twitter data can help in earthquake detection and recovery.  
+```{r summary-text}
+
+```
+
+References
+
+Burks, L.,M.Miller, andR. Zadeh (2014).Rapid estimate of ground shaking intensity by combining simple earthquake characteristics with tweets,
+Tenth U.S. National Conference on Earthquake Engineering Frontiers
+of Earthquake Engineering, Anchorage, Alaska, 21–25 July 2014.
+
+Crooks, A., A. Croitoru, A. Stefanidis, and J. Radzikowski (2012). Earthquake:
+Twitter as a distributed sensor system, Trans. GIS 17, no. 1,
+124–147.
+
+Earle, P., D. Bowden, and M. Guy (2011). Twitter earthquake detection:
+Earthquake monitoring in a social world, Ann. Geophys. 54, no. 6,
+708–715.
+
+Kropivnitskaya, Y., K. Tiampo, J. Qin, and M. Bauer (2017). The Predictive Relationship between intensity and tweets Rate for real-time ground-motion estimation, Seismological Research Letters 88, no. 3, 840-850, doi: 10.1785/0220160215
+
+Kropivnitskaya, Y., K. Tiampo, J. Qin, and M. Bauer (2016). Real-time
+earthquake intensity estimation using streaming data analysis of social
+and physical sensors, Pure Appl. Geophys., 1–19, doi: 10.1007/
+s00024-016-1417-6.
+
+Project EPIC, CU Boulder, US National Science Foundation, Grants IIS-0546315 & IIS-0910586 (2017), Twitter data set 2012- 2017 [data set]. Boulder, Colorado: Project EPIC [distributor].
+
+U.S. Geological Survey. (2017). <i>ShakeMap</i> [Maps and data].  https://doi.org/doi:10.5066/F7W957B2
+
+California Seismic Safety Commission
+Pacific Earthquake Engineering Research Center (PEER)
+The Mw 6.0 South Napa Earthquake of August 24, 2014:
+A Wake-up Call for Renewed Investment in Seismic Resilience
+across California 
+CSSC Publication 16-03
+PEER Report No. 2016/04
+June 2016 
+Prepared by:
+PEER – Pacific Earthquake Engineering Research Center
+Laurie A. Johnson
+University of California, Berkeley
+Stephen A. Mahin
+University of California, Berkeley
+
+ShakeMap 3.5 Manual
